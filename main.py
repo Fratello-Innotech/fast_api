@@ -1,10 +1,21 @@
+import fastapi
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import engine, Base, get_db
 from models import Student
 from schema import  StudentCreate, StudentUpdate, StudentPatch
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+security = HTTPBasic()
 app=FastAPI()
 Base.metadata.create_all(bind=engine)
+def authenticate_user(credentials: HTTPBasicCredentials):
+    username = credentials.username
+    password = credentials.password
+    if username != "admin" or password != "12345":
+        raise HTTPException(status_code=401, detail="Invalid Username or Password")
+    return username
+
+
 @app.post("/students/")
 def create_student(
     student : StudentCreate,
@@ -17,7 +28,8 @@ def create_student(
 
 
 @app.get("/students")
-def get_students(db: Session = Depends(get_db)):
+def get_students(db: Session = Depends(get_db), credentials: HTTPBasicCredentials = Depends(security)):
+    authenticate_user(credentials)
     students = db.query(Student).all()
     return {"message": "Successfully Students Fetched","data":students}
 
