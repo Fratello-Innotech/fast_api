@@ -3,17 +3,12 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import engine, Base, get_db
 from models import Student
-from schema import  StudentCreate, StudentUpdate, StudentPatch
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-security = HTTPBasic()
+from schema import  StudentCreate, StudentUpdate, StudentPatch, LoginRequest
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from auth import create_access_token, verify_token
+security = HTTPBearer()
 app=FastAPI()
 Base.metadata.create_all(bind=engine)
-def authenticate_user(credentials: HTTPBasicCredentials):
-    username = credentials.username
-    password = credentials.password
-    if username != "admin" or password != "12345":
-        raise HTTPException(status_code=401, detail="Invalid Username or Password")
-    return username
 
 
 @app.post("/students/")
@@ -28,8 +23,11 @@ def create_student(
 
 
 @app.get("/students")
-def get_students(db: Session = Depends(get_db), credentials: HTTPBasicCredentials = Depends(security)):
-    authenticate_user(credentials)
+def get_students(db: Session = Depends(get_db), credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    email = verify_token(token)
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid or Expired Token")
     students = db.query(Student).all()
     return {"message": "Successfully Students Fetched","data":students}
 
@@ -77,3 +75,12 @@ def delete_student(student_id: int, db: Session = Depends(get_db)):
     db.delete(student)
     db.commit()
     return {"message": "Successfully Student Deleted"}
+
+
+@app.post("/login")
+def login(login_data: LoginRequest,db: Session = Depends(get_db)):
+    student = db.query(Student).filter(Student.email == login_data.email, Student.password == login_data.password).first()
+    if not student:
+        raise HTTPException(status_code=401, detail="Invalid Email or Password")
+    access_token = create_access_token({"sub":student.email})
+    return {"message": "Successfully Login", "access_token":access_token, "token_type":"bearer"}

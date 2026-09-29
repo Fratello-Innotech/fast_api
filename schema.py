@@ -17,3 +17,9 @@ class StudentPatch(BaseModel):
     email: str | None = None
     course: str | None = None
     password: str | None = None
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
